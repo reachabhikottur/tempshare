@@ -1,0 +1,17 @@
+*&---------------------------------------------------------------------*
+*& Report ZPP_ROUTING_MASS_INSPECTION
+*&---------------------------------------------------------------------*
+*& Program ID       : ZPP_ROUTING_MASS_INSPECTION
+*& Program name     : Mass Inpection Create
+*& Program overview : Create Mass Inspection for the Rouing group,
+*                     Group Counter and Opperation.
+*& Creation Date    :
+*& Author           : Abhinandan.M
+*&
+*& Version History
+*& PSEK9A6EVZ       : Initial Version
+*& PSEK9A6ICX       : Tranaction block until Bug is fixed
+*&                    -> Bug afvv-umrez = 0; zero division error.
+*& PSEK9A8D3F       : Changes to Mass BOM and Routing
+
+*&---------------------------------------------------------------------*
