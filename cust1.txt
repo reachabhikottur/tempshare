@@ -1,0 +1,70 @@
+*&---------------------------------------------------------------------*
+*& Report ZTEST_CREATE_BP
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ztest_create_bp.
+
+
+DATA : ls_central TYPE bapibus1006_central,
+       ls_person  TYPE bapibus1006_central_person,
+       lv_bupa_id TYPE bu_partner,
+       ls_addr    TYPE bapibus1006_address,
+       lt_return  TYPE TABLE OF bapiret2,
+       ls_role    TYPE bapibus1006_bproles.
+
+DATA : it_tab TYPE TABLE OF bapiret2.
+
+
+SELECT SINGLE * FROM kna1 INTO @DATA(ls_data) WHERE kunnr = 'K_CRAFTS' .
+IF sy-subrc IS INITIAL.
+
+  MOVE-CORRESPONDING ls_data TO ls_person.
+  MOVE-CORRESPONDING ls_data TO ls_addr.
+  ls_person-firstname     = ls_data-name1.
+  ls_person-lastname      = ls_data-name2.
+  ls_addr-city            = ls_data-ort01.
+  ls_addr-postl_cod1      = ls_data-pstlz.
+  ls_addr-street          = ls_data-stras.
+  ls_addr-house_no        = ls_data-stras.
+  ls_addr-country         = ls_data-land1.
+  ls_addr-region          = ls_data-regio.
+  MOVE-CORRESPONDING ls_person TO ls_central.
+ENDIF.
+
+
+CALL FUNCTION 'BAPI_BUPA_CREATE_FROM_DATA'
+  EXPORTING
+*    BUSINESSPARTNEREXTERN = 'VATBP'
+    partnercategory   = '1'
+    partnergroup      = 'KRED'
+    centraldata       = ls_central
+    centraldataperson = ls_person
+    addressdata       = ls_addr
+  IMPORTING
+    businesspartner   = lv_bupa_id
+  TABLES
+    return            = lt_return.
+
+CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+  EXPORTING
+    wait = 'X'.
+
+ls_role-partnerrole = 'ZVKRED' .
+
+CALL FUNCTION 'BAPI_BUPA_ROLE_ADD_2'
+  EXPORTING
+    businesspartner     = lv_bupa_id
+    businesspartnerrole = ls_role-partnerrole
+    validfromdate       = sy-datum
+    validuntildate      = '99991231'
+  TABLES
+    return              = it_tab.
+
+CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+  EXPORTING
+    wait = 'X'.
+
+WRITE : lv_bupa_id.
+
+*BREAK-POINT.

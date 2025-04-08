@@ -1,0 +1,103 @@
+FORM call_bapi .
+
+  DATA: ls_knvp                   TYPE knvp.
+  DATA: ls_master_data           TYPE cmds_ei_main,
+        ls_master_data_correct   TYPE cmds_ei_main,
+        ls_message_correct       TYPE cvis_message,
+        ls_master_data_defective TYPE cmds_ei_main,
+        ls_message_defective     TYPE cvis_message.
+
+  DATA: lt_customers        TYPE cmds_ei_extern_t,
+        lt_final_err        TYPE zt_t_final_alv,
+        ls_customers_header TYPE    cmds_ei_header.
+
+
+  DATA: ls_central_data TYPE cmds_ei_central_data,
+        lt_tax_ind      TYPE cmds_ei_tax_ind_t,
+        ls_tax_ind_cmd  TYPE cmds_ei_cmd_tax_ind.
+
+
+
+  cmd_ei_api=>initialize( ).
+  LOOP AT gt_final ASSIGNING FIELD-SYMBOL(<ls_final>).
+
+    IF NOT ( <ls_final>-tcs EQ '0' OR <ls_final>-tcs EQ '1' OR <ls_final>-tcs EQ '2' ).
+      <ls_final>-status = gc_traffic-red.
+      <ls_final>-message = TEXT-005.
+      ADD 1 TO gv_failed.
+
+      APPEND <ls_final> TO lt_final_err.
+
+    ELSE.
+      APPEND INITIAL LINE TO lt_customers ASSIGNING FIELD-SYMBOL(<ls_customers>).
+
+      <ls_customers>-header-object_instance-kunnr = <ls_final>-kunnr.
+      <ls_customers>-header-object_task = 'U'.
+
+      <ls_customers>-central_data-tax_ind-current_state = space.
+
+      APPEND INITIAL LINE TO <ls_customers>-central_data-tax_ind-tax_ind
+      ASSIGNING FIELD-SYMBOL(<ls_tax_ind>).
+
+
+      <ls_tax_ind>-task = 'M'.
+      <ls_tax_ind>-data_key-aland = 'IN'.
+      <ls_tax_ind>-data_key-tatyp = 'JTC1'.
+      <ls_tax_ind>-data-taxkd = <ls_final>-tcs.
+      <ls_tax_ind>-datax-taxkd = abap_true.
+
+      ls_master_data-customers = lt_customers.
+
+      cmd_ei_api=>lock( iv_kunnr = <ls_final>-kunnr ).
+
+    ENDIF.
+
+  ENDLOOP.
+
+
+  " Update Customer with CMD_EI_API
+  CALL METHOD cmd_ei_api=>maintain_bapi
+    EXPORTING
+      iv_test_run              = cb_test
+      iv_collect_messages      = 'X'
+      is_master_data           = ls_master_data
+    IMPORTING
+      es_master_data_correct   = ls_master_data_correct
+      es_message_correct       = ls_message_correct
+      es_master_data_defective = ls_master_data_defective
+      es_message_defective     = ls_message_defective.
+
+  IF ls_master_data_correct IS NOT INITIAL AND cb_test IS INITIAL.
+    COMMIT WORK.
+  ELSE.
+    ROLLBACK WORK.
+  ENDIF.
+
+  LOOP AT ls_master_data-customers ASSIGNING FIELD-SYMBOL(<ls_cust>).
+
+    DATA(lv_index) = sy-tabix.
+
+    READ TABLE gt_final ASSIGNING <ls_final> WITH KEY kunnr = <ls_cust>-header-object_instance-kunnr.
+    IF sy-subrc EQ 0.
+
+      READ TABLE ls_message_defective-messages INTO DATA(ls_message)
+      WITH KEY row = lv_index.
+      IF sy-subrc EQ 0.
+        <ls_final>-status = gc_traffic-red.
+        <ls_final>-message = ls_message-message.
+        ADD 1 TO gv_failed.
+      ELSE.
+        <ls_final>-status = gc_traffic-green.
+        <ls_final>-message = TEXT-006.
+      ENDIF.
+
+    ENDIF.
+
+    cmd_ei_api=>unlock( iv_kunnr = <ls_cust>-header-object_instance-kunnr ).
+
+    CLEAR ls_message.
+  ENDLOOP.
+
+  PERFORM display_alv.
+
+ENDFORM.
